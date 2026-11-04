@@ -1,0 +1,12 @@
+[theme]
+name = "sunset"
+background = "#1b1023"
+foreground = "#f2e9e4"
+cursor = "#ff7a59"
+opacity = 0.96
+palette = [
+  "#241527", "#ff5d62", "#98c379", "#ffb454",
+  "#ff7a59", "#c678dd", "#56c2c6", "#f2e9e4",
+  "#4b2e42", "#ff5d62", "#98c379", "#ffb454",
+  "#ff7a59", "#c678dd", "#56c2c6", "#ffffff",
+]

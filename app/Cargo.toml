@@ -1,0 +1,29 @@
+[package]
+name = "lumenterm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "lumenterm"
+path = "src/main.rs"
+
+[dependencies]
+winit.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+arboard.workspace = true
+
+lumenterm-core.workspace = true
+lumenterm-renderer.workspace = true
+lumenterm-font.workspace = true
+lumenterm-config.workspace = true
+lumenterm-ui.workspace = true
+
+# Grid/Point/Line/Column/Color tiplerine ve Term::scroll_display'e doğrudan
+# erişim için (core, Term/Session'ı sarmalıyor ama grid indeksleme tipleri
+# alacritty_terminal'den geliyor).
+alacritty_terminal.workspace = true

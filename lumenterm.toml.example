@@ -1,0 +1,38 @@
+# ~/.config/lumenterm/lumenterm.toml örneği.
+# Uygulama ilk açılışta bu dosyayı otomatik oluşturur; bu, referans için
+# elle hazırlanmış bir örnektir. `notify` ile izlenir: kaydettiğiniz anda
+# pencereyi kapatmadan uygulanır.
+
+[font]
+family = "JetBrains Mono"
+size = 14.0
+fallback = ["Noto Color Emoji", "Noto Sans CJK SC"]
+antialiasing = "grayscale"
+
+[theme]
+name = "lumen-dark"
+background = "#0d0f14"
+foreground = "#e6e6e6"
+cursor = "#7aa2f7"
+opacity = 0.98
+palette = [
+  "#15171e", "#f7768e", "#9ece6a", "#e0af68",
+  "#7aa2f7", "#bb9af7", "#7dcfff", "#c0caf5",
+  "#414868", "#f7768e", "#9ece6a", "#e0af68",
+  "#7aa2f7", "#bb9af7", "#7dcfff", "#c0caf5",
+]
+
+[window]
+padding = 8
+corner_radius = 10.0
+decorations = false
+
+[cursor]
+style = "block"
+blink = true
+blink_interval_ms = 600
+animation_ms = 90
+
+[blocks]
+enabled = true
+fold_shortcut = "ctrl+shift+return"

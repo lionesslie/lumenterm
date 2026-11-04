@@ -1,0 +1,11 @@
+[package]
+name = "lumenterm-font"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cosmic-text.workspace = true
+swash.workspace = true
+anyhow.workspace = true
+log.workspace = true

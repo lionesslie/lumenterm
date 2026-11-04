@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+members = [
+    "core",
+    "renderer",
+    "font",
+    "config",
+    "ui",
+    "app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["LumenTerm contributors"]
+rust-version = "1.78"
+
+# Ortak bağımlılık sürümleri tek yerden yönetilsin (cargo-workspace dependency inheritance).
+[workspace.dependencies]
+winit = { version = "0.30", features = ["rwh_06"] }
+wgpu = "22"
+pollster = "0.3"
+bytemuck = { version = "1", features = ["derive"] }
+raw-window-handle = "0.6"
+
+vte = "0.13"
+alacritty_terminal = "0.24"
+portable-pty = "0.8"
+
+cosmic-text = "0.12"
+swash = "0.1"
+
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+notify = "6"
+
+nucleo = "0.5"
+arboard = "3"
+
+anyhow = "1"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+smallvec = "1"
+
+lumenterm-core = { path = "core" }
+lumenterm-renderer = { path = "renderer" }
+lumenterm-font = { path = "font" }
+lumenterm-config = { path = "config" }
+lumenterm-ui = { path = "ui" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"

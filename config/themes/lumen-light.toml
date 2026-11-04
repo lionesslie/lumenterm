@@ -1,0 +1,12 @@
+[theme]
+name = "lumen-light"
+background = "#f5f5f3"
+foreground = "#1a1a1a"
+cursor = "#3b5bdb"
+opacity = 1.0
+palette = [
+  "#1a1a1a", "#c92a2a", "#2b8a3e", "#e67700",
+  "#1864ab", "#862e9c", "#0c8599", "#495057",
+  "#868e96", "#c92a2a", "#2b8a3e", "#e67700",
+  "#1864ab", "#862e9c", "#0c8599", "#212529",
+]

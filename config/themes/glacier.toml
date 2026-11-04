@@ -1,0 +1,12 @@
+[theme]
+name = "glacier"
+background = "#0b1620"
+foreground = "#d7e6ee"
+cursor = "#4fd1c5"
+opacity = 0.97
+palette = [
+  "#0f1f2b", "#e06c75", "#4fd1c5", "#e5c07b",
+  "#61afef", "#9d7cd8", "#56b6c2", "#d7e6ee",
+  "#2c3e4a", "#e06c75", "#4fd1c5", "#e5c07b",
+  "#61afef", "#9d7cd8", "#56b6c2", "#ffffff",
+]

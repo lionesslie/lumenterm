@@ -1,0 +1,15 @@
+[package]
+name = "lumenterm-renderer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wgpu.workspace = true
+pollster.workspace = true
+bytemuck.workspace = true
+raw-window-handle.workspace = true
+anyhow.workspace = true
+log.workspace = true
+lumenterm-core.workspace = true
+lumenterm-font.workspace = true

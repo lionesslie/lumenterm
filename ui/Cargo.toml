@@ -1,0 +1,12 @@
+[package]
+name = "lumenterm-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nucleo.workspace = true
+lumenterm-core.workspace = true
+lumenterm-renderer.workspace = true
+anyhow.workspace = true
+log.workspace = true
