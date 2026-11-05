@@ -22,6 +22,11 @@ pub struct CellInstance {
     /// coverage maskesi (`fg_color` ile çarpılır). `has_glyph=0` iken
     /// anlamsız.
     pub color_glyph: f32,
+    /// Faz 5 chrome cilası: düz renk dikdörtgenler (`has_glyph=0`) için
+    /// piksel cinsinden köşe yarıçapı (SDF ile fragment shader'da
+    /// hesaplanır). 0 = tamamen keskin köşe (karakter hücreleri gibi);
+    /// glyph/görsel instance'larında (`has_glyph=1`) kullanılmaz.
+    pub corner_radius: f32,
 }
 
 const SHADER_SRC: &str = r#"
@@ -41,6 +46,7 @@ struct Instance {
     @location(5) atlas_uv_max: vec2<f32>,
     @location(6) has_glyph: f32,
     @location(7) color_glyph: f32,
+    @location(8) corner_radius: f32,
 };
 
 struct VsOut {
@@ -50,6 +56,12 @@ struct VsOut {
     @location(2) uv: vec2<f32>,
     @location(3) has_glyph: f32,
     @location(4) color_glyph: f32,
+    // Enstans içi yerel pozisyon (0..1, dikdörtgenin sol-üstünden
+    // itibaren) + piksel boyutu + köşe yarıçapı: yuvarlatılmış köşe
+    // SDF'i fragment shader'da bunlardan hesaplanır.
+    @location(5) local01: vec2<f32>,
+    @location(6) size_px: vec2<f32>,
+    @location(7) corner_radius: f32,
 };
 
 // Birim quad (0..1) * instance.size + instance.pos, NDC'ye çevrilir.
@@ -75,13 +87,32 @@ fn vs_main(
     out.uv = mix(inst.atlas_uv_min, inst.atlas_uv_max, corner);
     out.has_glyph = inst.has_glyph;
     out.color_glyph = inst.color_glyph;
+    out.local01 = corner;
+    out.size_px = inst.size;
+    out.corner_radius = inst.corner_radius;
     return out;
+}
+
+// Standart bir yuvarlatılmış-dikdörtgen SDF'i (Inigo Quilez'in bilinen
+// formülü): d<0 içeride, d>0 dışarıda; 1 piksellik yumuşak kenar.
+fn rounded_rect_alpha(local01: vec2<f32>, size_px: vec2<f32>, radius_px: f32) -> f32 {
+    if (radius_px <= 0.0) {
+        return 1.0;
+    }
+    let half = size_px * 0.5;
+    let r = min(radius_px, min(half.x, half.y));
+    let p = (local01 - vec2<f32>(0.5, 0.5)) * size_px;
+    let q = abs(p) - (half - vec2<f32>(r, r));
+    let d = length(max(q, vec2<f32>(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
+    return clamp(0.5 - d, 0.0, 1.0);
 }
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (in.has_glyph < 0.5) {
-        return in.bg_color;
+        var color = in.bg_color;
+        color.a = color.a * rounded_rect_alpha(in.local01, in.size_px, in.corner_radius);
+        return color;
     }
     let sample = textureSample(atlas_tex, atlas_sampler, in.uv);
     if (in.color_glyph > 0.5) {
@@ -186,6 +217,7 @@ impl CellPipeline {
                 5 => Float32x2, // atlas_uv_max
                 6 => Float32,   // has_glyph
                 7 => Float32,   // color_glyph
+                8 => Float32,   // corner_radius
             ],
         };
 

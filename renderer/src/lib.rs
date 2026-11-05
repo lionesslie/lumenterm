@@ -165,6 +165,19 @@ impl GpuState {
             .get_or_insert(&self.device, &self.queue, key, glyph)
     }
 
+    /// Kitty/Sixel'den gelen bir görseli atlas'a paketler (daha önce aynı
+    /// `image_id` ile paketlenmişse cache'ten döner).
+    pub fn image_entry(
+        &mut self,
+        image_id: u32,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Option<AtlasEntry> {
+        self.atlas
+            .insert_image(&self.device, &self.queue, image_id, width, height, rgba)
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;

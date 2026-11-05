@@ -9,10 +9,13 @@
 
 mod blocks;
 mod event;
+mod graphics;
 mod pty_io;
+mod sixel;
 
 pub use blocks::{Block, BlockTracker};
 pub use event::{CoreEvent, EventProxy};
+pub use graphics::{DecodedImage, GraphicsStore, ImagePlacement};
 
 use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::Dimensions;
@@ -84,6 +87,7 @@ impl Dimensions for TermDimensions {
 pub struct Session {
     pub term: Arc<Mutex<Term<EventProxy>>>,
     pub blocks: Arc<Mutex<BlockTracker>>,
+    pub graphics: Arc<Mutex<GraphicsStore>>,
     pty_writer: Box<dyn Write + Send>,
     _pty_pair: PtyPair,
     pub events_rx: Receiver<CoreEvent>,
@@ -122,14 +126,22 @@ impl Session {
         let term = Term::new(term_config, &dims, proxy);
         let term = Arc::new(Mutex::new(term));
         let blocks = Arc::new(Mutex::new(BlockTracker::default()));
+        let graphics = Arc::new(Mutex::new(GraphicsStore::default()));
+        let cell_px_f = (cell_px.0 as f32, cell_px.1 as f32);
 
-        pty_io::spawn_reader(term.clone(), blocks.clone(), events_tx, move |buf| {
-            pty_reader.read(buf)
-        });
+        pty_io::spawn_reader(
+            term.clone(),
+            blocks.clone(),
+            graphics.clone(),
+            cell_px_f,
+            events_tx,
+            move |buf| pty_reader.read(buf),
+        );
 
         Ok(Self {
             term,
             blocks,
+            graphics,
             pty_writer,
             _pty_pair: pty_pair,
             events_rx,
