@@ -5,7 +5,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-vte.workspace = true
+# `vte` burada kasıtlı olarak YOK -- bkz. kök Cargo.toml'daki not.
+# `alacritty_terminal::vte::ansi::Processor` kullanıyoruz, kendi `vte`
+# sürümümüzü zorlamıyoruz.
 alacritty_terminal.workspace = true
 portable-pty.workspace = true
 anyhow.workspace = true

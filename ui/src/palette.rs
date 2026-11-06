@@ -1,7 +1,7 @@
 //! Ctrl+Shift+P ile açılan komut paleti + scrollback fuzzy arama.
 //! `nucleo` ile bulanık eşleştirme yapılır; sonuçlar skora göre sıralanır.
 
-use nucleo::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::{Config, Nucleo};
 use std::sync::Arc;
 

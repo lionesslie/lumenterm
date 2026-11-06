@@ -1,90 +1,95 @@
 # LumenTerm
 
-Rust ve wgpu ile yazılmış, GPU hızlandırmalı bir terminal emülatörü. Linux
-(X11/Wayland) ve Windows üzerinde çalışır.
+Rust ve wgpu/Vulkan üzerine kurulu, modern ve sade görünümlü bir terminal emülatörü. Hedef platform Linux (X11 + Wayland); Windows desteği de var.
+
+LumenTerm, Alacritty/Kitty/WezTerm'in bir kopyası değil. Kendi kimliği **katmanlı scrollback**: varsayılan olarak klasik, kesintisiz bir scrollback akışı — hiçbir blok zorunluluğu yok. Ama her komutun sınırları arka planda sessizce işaretleniyor, isteyince (`Ctrl+Shift+Enter`) herhangi bir komut + çıktısını tek satıra katlayabiliyorsunuz. Warp'ın zorunlu blok modeli değil, opsiyonel ve hafif bir katman.
 
 ## Özellikler
 
-- wgpu tabanlı çizim (Linux'ta Vulkan; Windows'ta Vulkan, yoksa DX12)
-- Glyph atlası ile tek draw call'da metin ve arka plan çizimi
-- Yatay/dikey split pane'ler, her pane için ayrı PTY oturumu
-- Fuzzy aramalı komut paleti
-- Kitty graphics protokolü ve Sixel desteği
-- OSC 133 tabanlı komut blokları ve katlanabilir scrollback
-- TOML yapılandırma, canlı yeniden yükleme ve hazır temalar
-- Fare ile seçim/kopyalama, tekerlekle scrollback
+- **GPU render** — wgpu üzerinden Vulkan (Windows'ta DX12'ye loglanan fallback), instanced hücre çizimi, damage tracking ile boşta ~0 CPU/GPU kullanımı
+- **Tam VT100/xterm uyumluluğu** — 256 renk + true color, scrollback, fare ile seçim/kopyalama, OSC 52 clipboard
+- **Gerçek glyph render'ı** — cosmic-text + swash ile shaping/rasterizasyon, grayscale AA, emoji/CJK fallback zinciri
+- **Canlı config reload** — tema, font, opaklık; pencereyi kapatmadan anında uygulanır
+- **Kitty graphics protokolü + Sixel fallback** — görseller terminal metniyle aynı frame'de GPU'da composite edilir
+- **Komut paleti / fuzzy arama** — `Ctrl+Shift+P`, GPU'da çizilen overlay
+- **Split/pane** — ikili bölme ağacı, sürüklenebilir ayraçlar, gerçek ayrı oturumlar
+- **Katlanabilir komut blokları** — OSC 133 shell entegrasyonu, `Ctrl+Shift+Enter` ile katla/genişlet
+- **Yumuşak chrome** — yuvarlatılmış köşeler, cursor animasyonu, komut paletinde fade-in
 
-## Platform desteği
-
-| Platform | GPU backend | PTY | Varsayılan shell |
-|---|---|---|---|
-| Linux | Vulkan (zorunlu) | Unix PTY | `$SHELL` veya `/bin/bash` |
-| Windows 10/11 | Vulkan, yoksa DX12 | ConPTY | `pwsh.exe`, `powershell.exe` veya `cmd.exe` |
-
-## Gereksinimler
-
-- Rust 1.78 veya üzeri
-- Çalışan bir Vulkan sürücüsü
-- Windows: MSVC toolchain ve Visual Studio Build Tools
-- Linux: X11 veya Wayland oturumu
-
-## Derleme
-
-```bash
-cargo build --release
-```
+## Kurulum / Derleme
 
 ```bash
 # Linux
+cargo build --release
 ./target/release/lumenterm
+```
 
-# Windows
+```powershell
+# Windows (MSVC toolchain)
+cargo build --release
 .\target\release\lumenterm.exe
 ```
 
-## Yapılandırma
-
-Yapılandırma dosyası ilk çalıştırmada otomatik oluşturulur:
-
-- Linux: `$XDG_CONFIG_HOME/lumenterm/lumenterm.toml` veya `~/.config/lumenterm/lumenterm.toml`
-- Windows: `%APPDATA%\lumenterm\lumenterm.toml`
-
-Dosya kaydedildiğinde değişiklikler uygulama kapatılmadan uygulanır. Örnek
-yapılandırma için [`lumenterm.toml.example`](lumenterm.toml.example)
-dosyasına, hazır temalar için `config/themes/` klasörüne bakabilirsiniz.
+> **Bilinen bir sürüm uyuşmazlığı var:** `vte` 0.13.1, `alacritty_terminal 0.24.2`'nin beklediği API'yi kırdı. İlk derlemede `E0107: missing generics for struct Processor` hatası alırsanız:
+> ```bash
+> rm -f Cargo.lock
+> cargo update -p vte --precise 0.13.0
+> cargo build --release
+> ```
 
 ## Kısayollar
 
 | Kısayol | Eylem |
 |---|---|
-| `Ctrl+Shift+P` | Komut paletini aç/kapat |
-| `Ctrl+Shift+O` | Aktif pane'i yatay böl |
-| `Ctrl+Shift+U` | Aktif pane'i dikey böl |
+| `Ctrl+Shift+P` | Komut paleti / fuzzy arama |
+| `Ctrl+Shift+O` | Pane'i yatay böl |
+| `Ctrl+Shift+U` | Pane'i dikey böl |
 | `Ctrl+Shift+W` | Aktif pane'i kapat |
-| `Alt+Tab` | Pane'ler arasında geçiş |
+| `Alt+Tab` | Pane'ler arası geçiş |
 | `Ctrl+Shift+Enter` | Fare altındaki komut bloğunu katla/genişlet |
-| Sürükleme | Metin seç (bırakınca kopyalanır) |
-| Tekerlek | Scrollback'te kaydır |
+| Fare sürükleme (ayraç) | Pane boyutlandır |
+| Fare sol tık + sürükle | Seç (bırakınca kopyalanır) |
+| Fare tekerleği | Scrollback'te kaydır |
 
-## Shell entegrasyonu
+## Yapılandırma
 
-Komut bloklarının doğru çalışması için ilgili betiği shell yapılandırmanıza
-ekleyin:
+İlk açılışta `~/.config/lumenterm/lumenterm.toml` (Windows: `%APPDATA%\lumenterm`) otomatik oluşturulur ve dosya değişikliğinde anında yeniden yüklenir. Örnek:
 
-- bash: `app/assets/shell-integration/bash.sh`
-- zsh: `app/assets/shell-integration/zsh.sh`
-- PowerShell: `app/assets/shell-integration/powershell.ps1`
+```toml
+[theme]
+background = "#000000"
+foreground = "#ffffff"
+opacity = 0.98
 
-## Proje yapısı
+[window]
+# true: native başlık çubuğu + kapat/küçült düğmeleri (DE/DM kullanıcıları).
+# false: dekorasyonsuz, sade pencere (WM kullanıcıları — i3, sway, bspwm...).
+decorations = false
 
-| Crate | Görev |
-|---|---|
-| `core` | PTY, terminal durumu, blok takibi, grafik protokolleri |
-| `renderer` | wgpu pipeline ve glyph atlası |
-| `font` | Shaping ve rasterizasyon |
-| `config` | TOML yapılandırma ve temalar |
-| `ui` | Split ağacı ve komut paleti |
-| `app` | Pencere, girdi işleme ve ana döngü |
+[blocks]
+enabled = true
+```
+
+Dört hazır tema `config/themes/` altında: `lumen-dark` (varsayılan), `lumen-light`, `sunset`, `glacier`.
+
+Blok katmanının çalışması için shell entegrasyonu gerekir — `app/assets/shell-integration/` altında bash, zsh ve PowerShell için hazır script'ler var; kendi `rc`/`$PROFILE` dosyanıza source edin.
+
+## Mimari
+
+Cargo workspace, her biri tek bir sorumluluğa sahip crate'lere ayrılmış:
+
+```
+core/      PTY yönetimi, VTE/grid durumu, OSC 133 blok takibi, Kitty/Sixel çözücü
+renderer/  wgpu/Vulkan init, glyph+görsel atlas, instanced render pipeline
+font/      cosmic-text/swash entegrasyonu, fallback zinciri
+config/    TOML şema, hot-reload, temalar
+ui/        split/pane ağacı, komut paleti
+app/       winit event loop, girdi haritalama, her şeyi birleştirir
+```
+
+## Durum
+
+Erken aşama. Mimari ve render hattı uçtan uca yazıldı, ama ağ erişimi olmayan bir ortamda geliştirildiği için henüz gerçek bir derleyiciden geçmedi — ilk derlemede küçük hatalarla karşılaşmanız olası. Katmanlı scrollback şu an mevcut görünümü sıkıştırıyor, henüz ek geçmişi pencereye çekmiyor; Kitty'nin PNG yükü ve bazı ileri seviye aksiyonları henüz desteklenmiyor.
 
 ## Lisans
 

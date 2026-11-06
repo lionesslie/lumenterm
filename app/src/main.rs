@@ -1060,7 +1060,18 @@ impl ApplicationHandler for App {
         if let Some(watcher) = &self.config_watcher {
             if let Some(new_config) = watcher.poll() {
                 log::info!("Config yeniden yüklendi (hot reload)");
+                let decorations_changed = new_config.window.decorations != self.config.window.decorations;
                 self.config = new_config;
+                // `decorations` (top bar) pencere oluşturulduktan sonra da
+                // winit'in `set_decorations` API'siyle canlı değiştirilebilir
+                // -- WM kullanan biri `false` bırakır, DE/DM kullanan biri
+                // pencereyi kapatmadan `true` yapıp kapat/küçült düğmelerini
+                // anında geri getirebilir.
+                if decorations_changed {
+                    if let Some(window) = &self.window {
+                        window.set_decorations(self.config.window.decorations);
+                    }
+                }
                 need_redraw = true;
             }
         }

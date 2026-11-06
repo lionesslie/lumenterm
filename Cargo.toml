@@ -24,7 +24,15 @@ pollster = "0.3"
 bytemuck = { version = "1", features = ["derive"] }
 raw-window-handle = "0.6"
 
-vte = { version = "0.13", default-features = false, features = ["ansi"] }
+# NOT: `vte`'yi burada kasten doğrudan bağımlılık olarak listelemiyoruz.
+# Kodumuzda hiçbir yerde bare `vte::...` kullanılmıyor, her yerde
+# `alacritty_terminal::vte::ansi::Processor` (onun kendi yeniden-exportu)
+# kullanılıyor. Doğrudan bir `vte = "0.13"` kısıtı eklemek, Cargo'nun
+# sürüm çözücüsünü gereksiz yere en yeni 0.13.x'e zorlayıp
+# alacritty_terminal'in (daha eski bir vte API'sine göre yazılmış) iç
+# kodunu kırabiliyor -- tam olarak derlemede karşılaştığınız hata bu.
+# `vte`'nin hangi sürümünün kullanılacağına alacritty_terminal'in kendi
+# Cargo.toml'u karar versin; biz zorlamıyoruz.
 alacritty_terminal = "0.24"
 portable-pty = "0.8"
 

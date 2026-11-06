@@ -1,9 +1,9 @@
 # Varsayılan tema: koyu, yüksek kontrastlı.
 [theme]
 name = "lumen-dark"
-background = "#0d0f14"
-foreground = "#e6e6e6"
-cursor = "#7aa2f7"
+background = "#000000"
+foreground = "#ffffff"
+cursor = "#ffffff"
 opacity = 0.98
 palette = [
   "#15171e", "#f7768e", "#9ece6a", "#e0af68",

@@ -64,9 +64,9 @@ impl Default for ThemeConfig {
         // "Lumen Dark": koyu, yüksek kontrastlı varsayılan tema.
         Self {
             name: "lumen-dark".into(),
-            background: "#0d0f14".into(),
-            foreground: "#e6e6e6".into(),
-            cursor: "#7aa2f7".into(),
+            background: "#000000".into(),
+            foreground: "#ffffff".into(),
+            cursor: "#ffffff".into(),
             opacity: 0.98,
             palette: [
                 "#15171e", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#bb9af7", "#7dcfff",
@@ -83,6 +83,16 @@ impl Default for ThemeConfig {
 pub struct WindowConfig {
     pub padding: u32,
     pub corner_radius: f32,
+    /// Pencerenin native "top bar"ını (başlık çubuğu + kapat/küçült/
+    /// büyüt düğmeleri) winit üzerinden aç/kapat. `true` ⇒ sistem
+    /// dekorasyonu görünür (bir DE/DM altında -- GNOME, KDE, Windows
+    /// masaüstü vb. -- bu düğmelere ihtiyaç duyan kullanıcılar için).
+    /// `false` (varsayılan) ⇒ dekorasyon yok, tamamen sade bir pencere
+    /// (bir WM -- i3, sway, bspwm vb. -- altında çalışan ve pencere
+    /// kontrolünü zaten kendi kısayollarıyla yapan kullanıcılar için;
+    /// bu kullanıcılar bu düğmelere ihtiyaç duymaz). `lumenterm.toml`'da
+    /// değiştirip kaydettiğinizde pencereyi kapatmadan anında uygulanır
+    /// (hot-reload, bkz. `app`'teki `set_decorations` çağrısı).
     pub decorations: bool,
 }
 
