@@ -5,7 +5,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-nucleo.workspace = true
+# `nucleo` kasıtlı olarak YOK -- bkz. palette.rs'teki modül açıklaması:
+# küçük sabit liste için kendi senkron alt-dizi eşleştiricimizi kullanıyoruz.
 lumenterm-core.workspace = true
 lumenterm-renderer.workspace = true
 anyhow.workspace = true

@@ -24,6 +24,8 @@ pub struct Config {
     pub cursor: CursorConfig,
     #[serde(default)]
     pub blocks: BlocksConfig,
+    #[serde(default)]
+    pub animations: AnimationsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,8 +133,10 @@ impl Default for CursorConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct BlocksConfig {
-    /// Kimlik özelliği: opsiyonel komut blok katmanı varsayılan olarak
-    /// kapalı -- yalnızca OSC 133 işaretleme arka planda pasif çalışır.
+    /// Kimlik özelliği: opsiyonel komut blok katmanı. `true` (varsayılan)
+    /// iken OSC 133 işaretleme arka planda pasif çalışır ve kısayolla
+    /// katlama kullanılabilir hale gelir; kullanıcı hiçbir şeyi
+    /// katlamadığı sürece görünüşte hiçbir fark yaratmaz.
     pub enabled: bool,
     pub fold_shortcut: String,
 }
@@ -146,6 +150,25 @@ impl Default for BlocksConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AnimationsConfig {
+    /// Tüm "hareket" animasyonlarını (cursor'ın hücreden hücreye yumuşak
+    /// kayması, komut paletinin fade/slide-in açılışı) tek yerden
+    /// aç/kapat. `false` yapıldığında bu animasyonlar anında (0ms) biter
+    /// -- cursor doğrudan hedef hücrede belirir, palet anında açılır.
+    /// Cursor'ın yanıp sönmesi (`cursor.blink`) ayrı bir ayardır ve bu
+    /// bayraktan etkilenmez, çünkü o bir hareket animasyonu değil,
+    /// görünürlük durumudur.
+    pub enabled: bool,
+}
+
+impl Default for AnimationsConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -154,8 +177,60 @@ impl Default for Config {
             window: WindowConfig::default(),
             cursor: CursorConfig::default(),
             blocks: BlocksConfig::default(),
+            animations: AnimationsConfig::default(),
         }
     }
+}
+
+/// Hazır temaların TOML içeriği, derleme zamanında binary'ye gömülür
+/// (`include_str!`). Böylece kurulum yöntemi ne olursa olsun (cargo
+/// install, elle `cp target/release/lumenterm`, farklı bir dizin...)
+/// temalar her zaman mevcuttur -- çalışma zamanında depodaki
+/// `config/themes/*.toml` dosyalarının var olmasına bağımlı değiliz.
+const BUILTIN_THEMES: &[(&str, &str)] = &[
+    ("lumen-dark", include_str!("../themes/lumen-dark.toml")),
+    ("lumen-light", include_str!("../themes/lumen-light.toml")),
+    ("sunset", include_str!("../themes/sunset.toml")),
+    ("glacier", include_str!("../themes/glacier.toml")),
+];
+
+/// İlk çalıştırmada (ya da eksikse) hazır temaları kullanıcının config
+/// dizinine (`~/.config/lumenterm/themes/`, Windows'ta `%APPDATA%\lumenterm\themes`)
+/// yazar. Zaten mevcut bir dosyanın üzerine yazmaz -- kullanıcı bir
+/// hazır temayı elle değiştirmişse bunu korur.
+pub fn ensure_builtin_themes() -> std::io::Result<()> {
+    let Some(dir) = Config::default_path().parent().map(|p| p.join("themes")) else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(&dir)?;
+    for (name, content) in BUILTIN_THEMES {
+        let path = dir.join(format!("{name}.toml"));
+        if !path.exists() {
+            std::fs::write(&path, content)?;
+        }
+    }
+    Ok(())
+}
+
+/// `~/.config/lumenterm/themes/<name>.toml` dosyasını okuyup yalnızca
+/// `[theme]` tablosunu döner. Kullanıcı kendi özel temasını da aynı
+/// dizine aynı biçimde (`[theme]` tablosu içeren bir `.toml`) koyabilir.
+pub fn load_theme(name: &str) -> anyhow::Result<ThemeConfig> {
+    let dir = Config::default_path()
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("config dizini belirlenemedi"))?
+        .to_path_buf();
+    let path = dir.join("themes").join(format!("{name}.toml"));
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| anyhow::anyhow!("tema dosyası okunamadı ({}): {e}", path.display()))?;
+
+    #[derive(Deserialize)]
+    struct ThemeFile {
+        theme: ThemeConfig,
+    }
+    let parsed: ThemeFile = toml::from_str(&raw)
+        .map_err(|e| anyhow::anyhow!("tema dosyası ayrıştırılamadı ({}): {e}", path.display()))?;
+    Ok(parsed.theme)
 }
 
 impl Config {

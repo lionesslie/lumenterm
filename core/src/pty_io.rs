@@ -2,7 +2,7 @@ use crate::blocks::BlockTracker;
 use crate::event::{CoreEvent, EventProxy};
 use crate::graphics::GraphicsStore;
 use alacritty_terminal::term::Term;
-use alacritty_terminal::vte::ansi::{Processor, StdSyncHandler};
+use alacritty_terminal::vte::ansi::Processor;
 use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -30,7 +30,7 @@ pub fn spawn_reader<R>(
     thread::Builder::new()
         .name("lumenterm-pty-reader".into())
         .spawn(move || {
-            let mut processor: Processor<StdSyncHandler> = Processor::new();
+            let mut processor = Processor::new();
             let mut buf = [0u8; 32 * 1024];
 
             loop {

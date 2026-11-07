@@ -68,6 +68,9 @@ decorations = false
 
 [blocks]
 enabled = true
+
+[animations]
+enabled = true  # false: cursor kayması ve palet açılışı anında olur
 ```
 
 Dört hazır tema `config/themes/` altında: `lumen-dark` (varsayılan), `lumen-light`, `sunset`, `glacier`.

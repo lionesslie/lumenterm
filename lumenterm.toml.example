@@ -41,3 +41,10 @@ animation_ms = 90
 [blocks]
 enabled = true
 fold_shortcut = "ctrl+shift+return"
+
+[animations]
+# Cursor'ın hücreden hücreye yumuşak kayması ve komut paletinin
+# fade/slide-in açılışı gibi tüm "hareket" animasyonlarını tek
+# yerden aç/kapat. false yapılınca bunlar anında (0ms) gerçekleşir.
+# Cursor'ın yanıp sönmesi (yukarıdaki [cursor] blink) bundan etkilenmez.
+enabled = true

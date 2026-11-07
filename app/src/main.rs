@@ -5,6 +5,17 @@
 //! bloğu katla/genişlet) ve chrome cilası (yuvarlatılmış köşeler, aktif
 //! pane odak çizgisi, komut paletinde yumuşak açılış animasyonu) eklendi.
 
+// Windows'ta bir Rust binary'si varsayılan olarak "console" alt sistemiyle
+// derlenir; bu da .exe'yi çift tıkladığınızda, bizim kendi GUI
+// penceremizin (winit) yanında OS'un kendi konsol host penceresinin
+// (klasik siyah cmd penceresi) de açılmasına neden olur -- LumenTerm
+// zaten kendi terminal arayüzünü çizdiğinden bu ekstra pencere anlamsız
+// ve kafa karıştırıcı. Release build'lerde "windows" alt sistemine
+// geçerek bunu önlüyoruz. Debug build'lerde ise `log`/`env_logger`
+// çıktısını (stderr) görebilmeniz için konsolu kasıtlı olarak açık
+// bırakıyoruz.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod input;
 
 use alacritty_terminal::grid::Scroll;
@@ -139,6 +150,12 @@ impl App {
         let config_path = Config::default_path();
         let config = Config::load(&config_path).unwrap_or_default();
         let config_watcher = lumenterm_config::ConfigWatcher::new(config_path).ok();
+        // Hazır temaları kullanıcı config dizinine yaz (yoksa) -- komut
+        // paletinden "Temayı değiştir: ..." çalışması bu dosyaların
+        // orada var olmasına bağlı.
+        if let Err(e) = lumenterm_config::ensure_builtin_themes() {
+            log::warn!("Hazır temalar yazılamadı: {e}");
+        }
 
         let mut font = FontManager::new(&config.font.family, config.font.size, config.font.fallback.clone());
         let metrics = font.cell_metrics();
@@ -165,6 +182,19 @@ impl App {
             last_splits: Vec::new(),
             blink_on: true,
             next_blink: Instant::now(),
+        }
+    }
+
+    /// Cursor'ın hücreden hücreye kayma animasyonu için etkin süre.
+    /// `config.animations.enabled = false` iken 0 döner -- bu da
+    /// `CursorAnim`'in anında (animasyonsuz) hedefe atlamasını sağlar
+    /// (bkz. `CursorAnim::current`/`is_animating`'in `duration_ms == 0`
+    /// özel durumu).
+    fn cursor_anim_ms(&self) -> u64 {
+        if self.config.animations.enabled {
+            self.config.cursor.animation_ms
+        } else {
+            0
         }
     }
 
@@ -312,6 +342,11 @@ impl App {
     /// altında, zaten o hücrelerde metin çizilmiyor), hücreler ortada,
     /// ayraçlar ve palet en üstte.
     fn build_frame(&mut self) -> Vec<CellInstance> {
+        // Önce hesapla: aşağıda `self.gpu`/`self.panes` için alınan
+        // parçalı (field-disjoint) ödünçler canlıyken `self.cursor_anim_ms()`
+        // gibi tüm `self`'i isteyen bir metod çağrısı yapmak borrow
+        // checker ile çakışır.
+        let anim_ms = self.cursor_anim_ms();
         let Some(gpu) = self.gpu.as_mut() else { return Vec::new() };
         let bg_default = hex_to_rgba(&self.config.theme.background);
         let fg_default = hex_to_rgba(&self.config.theme.foreground);
@@ -444,24 +479,40 @@ impl App {
                             if ch != ' ' && ch != '\0' && !cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
                                 let bold = cell.flags.contains(Flags::BOLD);
                                 let italic = cell.flags.contains(Flags::ITALIC);
-                                if let Some(raster) = self.font.rasterize_char(ch, bold, italic) {
-                                    let key = GlyphKey { ch, bold, italic };
-                                    if let Some(entry) = gpu.glyph_entry(key, &raster) {
-                                        let baseline_y = cy + (self.cell_h - self.descent);
-                                        let gx = cx + entry.left as f32;
-                                        let gy = baseline_y - entry.top as f32;
-                                        cell_instances.push(CellInstance {
-                                            pos: [gx, gy],
-                                            size: [entry.width as f32, entry.height as f32],
-                                            bg_color: [0.0; 4],
-                                            fg_color: cell_fg,
-                                            atlas_uv_min: entry.uv_min,
-                                            atlas_uv_max: entry.uv_max,
-                                            has_glyph: 1.0,
-                                            color_glyph: if entry.color_glyph { 1.0 } else { 0.0 },
-                                            corner_radius: 0.0,
-                                        });
-                                    }
+                                let key = GlyphKey { ch, bold, italic };
+                                // ÖNEMLİ (performans): önce atlas cache'ine
+                                // bak. Daha önce burada her redraw'da --
+                                // yani her cursor blink'inde veya cursor
+                                // animasyonunun her 16ms'lik karesinde --
+                                // ekrandaki HER karakter, atlas'ta zaten
+                                // var olsa bile `cosmic-text` ile yeniden
+                                // shape+rasterize ediliyordu. Bu, özellikle
+                                // çok metinli TUI uygulamalarında (ör.
+                                // opencode, lazygit) belirgin kasmaya yol
+                                // açıyordu -- fare hareket etmese bile
+                                // blink/animasyon redraw'ları tetikliyordu.
+                                let entry = if let Some(e) = gpu.atlas.get(&key) {
+                                    Some(e)
+                                } else if let Some(raster) = self.font.rasterize_char(ch, bold, italic) {
+                                    gpu.glyph_entry(key, &raster)
+                                } else {
+                                    None
+                                };
+                                if let Some(entry) = entry {
+                                    let baseline_y = cy + (self.cell_h - self.descent);
+                                    let gx = cx + entry.left as f32;
+                                    let gy = baseline_y - entry.top as f32;
+                                    cell_instances.push(CellInstance {
+                                        pos: [gx, gy],
+                                        size: [entry.width as f32, entry.height as f32],
+                                        bg_color: [0.0; 4],
+                                        fg_color: cell_fg,
+                                        atlas_uv_min: entry.uv_min,
+                                        atlas_uv_max: entry.uv_max,
+                                        has_glyph: 1.0,
+                                        color_glyph: if entry.color_glyph { 1.0 } else { 0.0 },
+                                        corner_radius: 0.0,
+                                    });
                                 }
                             }
                         }
@@ -509,9 +560,9 @@ impl App {
             drop(term);
 
             if let Some(target) = cursor_target {
-                runtime.cursor_anim.retarget(target, self.config.cursor.animation_ms);
+                runtime.cursor_anim.retarget(target, anim_ms);
                 if self.blink_on && rect.pane == self.ui.splits.active {
-                    let pos = runtime.cursor_anim.current(self.config.cursor.animation_ms);
+                    let pos = runtime.cursor_anim.current(anim_ms);
                     let cursor_color = hex_to_rgba(&self.config.theme.cursor);
                     cell_instances.push(CellInstance {
                         pos: [pos.0, pos.1],
@@ -614,15 +665,21 @@ fn push_palette(
     // Yumuşak açılış: panel 120ms içinde hafifçe yukarıdan kayarak ve
     // saydamlıktan belirerek açılır -- "minimal chrome ama yumuşak
     // animasyonlar" hedefinin küçük bir yansıması.
+    // `config.animations.enabled = false` iken bu tamamen atlanır, panel
+    // doğrudan tam opak/konumunda belirir.
     const FADE_MS: f32 = 120.0;
-    let (fade_t, slide_y) = match palette_opened_at {
-        Some(start) => {
-            let elapsed = start.elapsed().as_secs_f32() * 1000.0;
-            let t = (elapsed / FADE_MS).clamp(0.0, 1.0);
-            let eased = 1.0 - (1.0 - t) * (1.0 - t);
-            (eased, (1.0 - eased) * 10.0)
+    let (fade_t, slide_y) = if !config.animations.enabled {
+        (1.0, 0.0)
+    } else {
+        match palette_opened_at {
+            Some(start) => {
+                let elapsed = start.elapsed().as_secs_f32() * 1000.0;
+                let t = (elapsed / FADE_MS).clamp(0.0, 1.0);
+                let eased = 1.0 - (1.0 - t) * (1.0 - t);
+                (eased, (1.0 - eased) * 10.0)
+            }
+            None => (1.0, 0.0),
         }
-        None => (1.0, 0.0),
     };
     let panel_y = panel_y + slide_y;
 
@@ -687,24 +744,31 @@ fn push_text(
     let mut cx = x;
     for ch in text.chars() {
         if ch != ' ' {
-            if let Some(raster) = font.rasterize_char(ch, false, false) {
-                let key = GlyphKey { ch, bold: false, italic: false };
-                if let Some(entry) = gpu.glyph_entry(key, &raster) {
-                    let baseline_y = y + (cell_h - descent);
-                    let gx = cx + entry.left as f32;
-                    let gy = baseline_y - entry.top as f32;
-                    out.push(CellInstance {
-                        pos: [gx, gy],
-                        size: [entry.width as f32, entry.height as f32],
-                        bg_color: [0.0; 4],
-                        fg_color: color,
-                        atlas_uv_min: entry.uv_min,
-                        atlas_uv_max: entry.uv_max,
-                        has_glyph: 1.0,
-                        color_glyph: if entry.color_glyph { 1.0 } else { 0.0 },
-                        corner_radius: 0.0,
-                    });
-                }
+            let key = GlyphKey { ch, bold: false, italic: false };
+            // Burada da önce atlas cache'ine bak (bkz. ana hücre
+            // döngüsündeki aynı optimizasyonun açıklaması).
+            let entry = if let Some(e) = gpu.atlas.get(&key) {
+                Some(e)
+            } else if let Some(raster) = font.rasterize_char(ch, false, false) {
+                gpu.glyph_entry(key, &raster)
+            } else {
+                None
+            };
+            if let Some(entry) = entry {
+                let baseline_y = y + (cell_h - descent);
+                let gx = cx + entry.left as f32;
+                let gy = baseline_y - entry.top as f32;
+                out.push(CellInstance {
+                    pos: [gx, gy],
+                    size: [entry.width as f32, entry.height as f32],
+                    bg_color: [0.0; 4],
+                    fg_color: color,
+                    atlas_uv_min: entry.uv_min,
+                    atlas_uv_max: entry.uv_max,
+                    has_glyph: 1.0,
+                    color_glyph: if entry.color_glyph { 1.0 } else { 0.0 },
+                    corner_radius: 0.0,
+                });
             }
         }
         cx += cell_w;
@@ -803,8 +867,43 @@ fn cell_color(color: alacritty_terminal::vte::ansi::Color, config: &Config, defa
         Color::Named(NamedColor::Foreground) if !is_bg => default,
         Color::Named(named) => config.theme.palette.get(named as usize % 16).map(|h| hex_to_rgba(h)).unwrap_or(default),
         Color::Spec(rgb) => [rgb.r as f32 / 255.0, rgb.g as f32 / 255.0, rgb.b as f32 / 255.0, 1.0],
-        Color::Indexed(i) => config.theme.palette.get(i as usize % 16).map(|h| hex_to_rgba(h)).unwrap_or(default),
+        Color::Indexed(i) => indexed_to_rgba(i, &config.theme.palette),
     }
+}
+
+/// xterm'ün standart 256 renk paletini doğru şekilde çözer. Önceki
+/// kod `i % 16` yapıyordu -- yani 0-15 dışındaki HER indeksi (yani
+/// extended 256-renk küpünün ve gri tonlama rampasının *tamamını*,
+/// 16-255 arası) rastgele yanlış bir ANSI rengine sarıyordu. Modern
+/// TUI araçları (opencode, lazygit, bat, birçok Neovim teması...)
+/// soluk/pastel tonlar için tam olarak bu 16-255 aralığını yoğun
+/// kullandığından, bu hata "renkler soluk/yanlış görünüyor" şikayetinin
+/// doğrudan sebebiydi.
+///
+/// - 0-15: temel ANSI renkleri (kullanıcının tema paletinden)
+/// - 16-231: 6x6x6 renk küpü (`16 + 36r + 6g + b`, r/g/b: 0..6)
+/// - 232-255: 24 basamaklı gri tonlama rampası
+fn indexed_to_rgba(i: u8, palette: &[String; 16]) -> [f32; 4] {
+    if i < 16 {
+        return palette.get(i as usize).map(|h| hex_to_rgba(h)).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+    }
+    if i >= 232 {
+        let level = 8 + (i as u32 - 232) * 10;
+        let v = level as f32 / 255.0;
+        return [v, v, v, 1.0];
+    }
+    let idx = i as u32 - 16;
+    let r = idx / 36;
+    let g = (idx / 6) % 6;
+    let b = idx % 6;
+    let level = |n: u32| -> f32 {
+        if n == 0 {
+            0.0
+        } else {
+            (55 + n * 40) as f32 / 255.0
+        }
+    };
+    [level(r), level(g), level(b), 1.0]
 }
 
 impl ApplicationHandler for App {
@@ -1087,8 +1186,10 @@ impl ApplicationHandler for App {
             next_wake = Some(self.next_blink);
         }
 
-        let cursor_animating = self.panes.values().any(|r| r.cursor_anim.is_animating(self.config.cursor.animation_ms));
-        let palette_animating = self.ui.palette_open
+        let anim_ms = self.cursor_anim_ms();
+        let cursor_animating = self.panes.values().any(|r| r.cursor_anim.is_animating(anim_ms));
+        let palette_animating = self.config.animations.enabled
+            && self.ui.palette_open
             && self.ui.palette_opened_at.map(|t| t.elapsed().as_millis() < 120).unwrap_or(false);
         if cursor_animating || palette_animating {
             need_redraw = true;
@@ -1126,9 +1227,6 @@ impl App {
         match &event.logical_key {
             Key::Named(NamedKey::Escape) => self.ui.palette_open = false,
             Key::Named(NamedKey::Enter) => {
-                // Faz 4 kapsamında yalnızca birkaç yerleşik komut
-                // uygulanıyor (tema değiştirme); geri kalanı (scrollback
-                // satırına atlama vb.) ileride eklenebilir.
                 let results = self.ui.palette.results(10);
                 if let Some(label) = results.get(self.ui.palette.selected) {
                     self.execute_palette_command(label.clone());
@@ -1136,7 +1234,15 @@ impl App {
                 self.ui.palette_open = false;
             }
             Key::Named(NamedKey::ArrowDown) => {
-                self.ui.palette.selected = (self.ui.palette.selected + 1).min(9);
+                // Önemli: sabit bir üst sınır (ör. 9) yerine *gerçek*
+                // filtrelenmiş sonuç sayısına göre kenetlenir. Aksi halde
+                // (ör. yalnızca 3 sonuç varken) seçim görünmeyen bir
+                // index'e gidip Enter'a basınca hiçbir şey olmuyordu --
+                // "palet özellikleri çalışmıyor" şikayetinin asıl sebebi.
+                let count = self.ui.palette.results(10).len();
+                if count > 0 {
+                    self.ui.palette.selected = (self.ui.palette.selected + 1).min(count - 1);
+                }
             }
             Key::Named(NamedKey::ArrowUp) => {
                 self.ui.palette.selected = self.ui.palette.selected.saturating_sub(1);
@@ -1156,17 +1262,22 @@ impl App {
     }
 
     fn execute_palette_command(&mut self, label: String) {
-        if let Some(theme_file) = label.strip_prefix("Temayı değiştir: ") {
-            let path = lumenterm_config::Config::default_path()
-                .parent()
-                .map(|p| p.join("themes").join(format!("{theme_file}.toml")));
-            log::info!("Tema değişimi istendi: {theme_file} (dosya: {path:?}) -- şu an yalnızca config.toml'ü elle düzenleyip hot-reload ile uygulayın");
+        if let Some(theme_name) = label.strip_prefix("Temayı değiştir: ") {
+            match lumenterm_config::load_theme(theme_name) {
+                Ok(theme) => {
+                    self.config.theme = theme;
+                    log::info!("Tema değiştirildi: {theme_name}");
+                }
+                Err(e) => log::warn!("Tema değiştirilemedi: {e}"),
+            }
         } else if label == "Yatay böl" {
             self.split_and_spawn(SplitDirection::Horizontal);
         } else if label == "Dikey böl" {
             self.split_and_spawn(SplitDirection::Vertical);
         } else if label == "Yeni sekme" {
             self.split_and_spawn(SplitDirection::Horizontal);
+        } else if label.starts_with("Komut bloğunu katla/aç") {
+            self.toggle_fold_under_mouse();
         }
         self.dirty = true;
     }

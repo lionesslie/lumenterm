@@ -43,7 +43,6 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 notify = "6"
 
-nucleo = "0.5"
 arboard = "3"
 
 anyhow = "1"
