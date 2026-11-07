@@ -2,7 +2,7 @@ use crate::blocks::BlockTracker;
 use crate::event::{CoreEvent, EventProxy};
 use crate::graphics::GraphicsStore;
 use alacritty_terminal::term::Term;
-use alacritty_terminal::vte::ansi::Processor;
+use alacritty_terminal::vte::ansi::{Processor, StdSyncHandler};
 use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -30,7 +30,15 @@ pub fn spawn_reader<R>(
     thread::Builder::new()
         .name("lumenterm-pty-reader".into())
         .spawn(move || {
-            let mut processor = Processor::new();
+            // `vte` 0.13.1'den itibaren `Processor<T: Timeout = StdSyncHandler>`
+            // bir generic parametre aldı. Varsayılan tip (`StdSyncHandler`)
+            // yalnızca *tip pozisyonunda* otomatik uygulanıyor; `Processor::new()`
+            // bir fonksiyon çağrısı olduğundan Rust bunu kendiliğinden çıkaramıyor
+            // ("type annotations needed" hatası) -- bu yüzden burada açıkça
+            // belirtiyoruz. `StdSyncHandler`, senkronize çıktı (DEC mode 2026)
+            // zaman aşımını senkron/basit şekilde ele alan varsayılan handler'dır;
+            // bizim kullanım şeklimiz için tam olarak doğru seçim.
+            let mut processor = Processor::<StdSyncHandler>::new();
             let mut buf = [0u8; 32 * 1024];
 
             loop {

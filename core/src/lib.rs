@@ -5,7 +5,7 @@
 //! "terminal durumu" (grid, scrollback, cursor, seçim) ve PTY I/O sağlar.
 //!
 //! Faz 1 kapsamı: çalışan bir PTY + grid güncellemesi.
-//! Faz 7 (kimlik özelliği) için: OSC 133 prompt marking -> `BlockTracker`.
+//! Faz 5 (kimlik özelliği) için: OSC 133 prompt marking -> `BlockTracker`.
 
 mod blocks;
 mod event;
@@ -17,16 +17,13 @@ pub use blocks::{Block, BlockTracker};
 pub use event::{CoreEvent, EventProxy};
 pub use graphics::{DecodedImage, GraphicsStore, ImagePlacement};
 
-use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::term::{Config as TermConfig, Term};
-use alacritty_terminal::Grid;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 use portable_pty::{CommandBuilder, NativePtySystem, PtyPair, PtySize, PtySystem};
 use std::io::{Read, Write};
 use std::sync::Arc;
-use std::thread;
 
 /// Terminal hücre boyutları (kolon/satır) + piksel boyutu (font metrikleri
 /// hazır olduğunda `renderer`/`font` tarafından doldurulur).

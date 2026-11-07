@@ -258,17 +258,3 @@ impl SplitTree {
     }
 }
 
-impl Clone for SplitNode {
-    fn clone(&self) -> Self {
-        match self {
-            SplitNode::Leaf(id) => SplitNode::Leaf(*id),
-            SplitNode::Split { id, direction, ratio, first, second } => SplitNode::Split {
-                id: *id,
-                direction: *direction,
-                ratio: *ratio,
-                first: first.clone(),
-                second: second.clone(),
-            },
-        }
-    }
-}
